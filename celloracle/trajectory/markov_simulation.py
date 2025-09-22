@@ -1,7 +1,9 @@
-
+#from copy import deepcopy
+#import warnings
+#import logging
 import numpy as np
 
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 
 #from network_fitting import TransNet as tn
 from numba import jit, f8, i8, void
@@ -12,7 +14,7 @@ from numba import jit, f8, i8, void
 #############################################
 
 
-#@jit(i8[:,:](i8[:], f8[:,:], i8))
+@jit(i8[:,:](i8[:], f8[:,:], i8))
 def _walk(start_cell_id_array, transition_prob, n_steps):
     """
     Do markov simulation based on given transition probability.

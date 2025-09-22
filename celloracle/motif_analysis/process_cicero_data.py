@@ -30,7 +30,7 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 
 
 from .process_bed_file import df_to_list_peakstr

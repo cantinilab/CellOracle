@@ -6,7 +6,7 @@ import os
 from typing import *
 
 
-def _obj2uint(obj: object, compression: int=9, protocol: int=4) -> np.ndarray:
+def _obj2uint(obj: object, compression: int=9, protocol: int=2) -> np.ndarray:
     """Transform a python object in a numpy array of uint8
 
     Arguments
@@ -43,7 +43,7 @@ def _uint2obj(uint: np.ndarray) -> object:
 
 def dump_hdf5(obj: object, filename: str,
               data_compression: int=7, chunks: Tuple =(2048, 2048),
-              noarray_compression: int=9, pickle_protocol: int=4) -> None:
+              noarray_compression: int=9, pickle_protocol: int=2) -> None:
     """Dump all attribute of a python object to hdf5
 
     Arguments
@@ -72,7 +72,7 @@ def dump_hdf5(obj: object, filename: str,
         for k in obj.__dict__.keys():
             attribute = getattr(obj, k)
             if type(attribute) is np.ndarray:
-                if attribute.dtype is not np.dtype(object):
+                if attribute.dtype is not np.dtype(np.object):
                     try:
                         chunk_size = tuple((min(chunks[i], attribute.shape[i]) for i in range(len(attribute.shape))))
                         _file.create_dataset(k, data=attribute, chunks=chunk_size,
@@ -98,7 +98,7 @@ def dump_hdf5(obj: object, filename: str,
                                      fletcher32=False, shuffle=False)
 
 
-def load_hdf5(filename, obj_class, ignore_attrs_if_err=[]):
+def load_hdf5(filename: str, obj_class: Type[object]) -> object:
     """Load all attributes from a hdf5 encoded python object
 
     Arguments
@@ -120,20 +120,10 @@ def load_hdf5(filename, obj_class, ignore_attrs_if_err=[]):
 
     obj = obj_class.__new__(obj_class)
     _file = h5py.File(filename, "r")
-
-    ignore_attrs_if_err = ["&"+ k for k in ignore_attrs_if_err]
-
     for k in _file.keys():
-        if k in ignore_attrs_if_err:
-            try:
-                setattr(obj, k[1:], _uint2obj(_file[k][:]))
-            except:
-                pass
+        if k.startswith("&"):
+            setattr(obj, k[1:], _uint2obj(_file[k][:]))
         else:
-            if k.startswith("&"):
-                setattr(obj, k[1:], _uint2obj(_file[k][:]))
-            else:
-                setattr(obj, k, _file[k][:])
+            setattr(obj, k, _file[k][:])
     _file.close()
-
     return obj

@@ -24,7 +24,7 @@ import os
 import glob
 from copy import deepcopy
 import pickle
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 import seaborn as sns
 
 

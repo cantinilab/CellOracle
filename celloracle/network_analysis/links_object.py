@@ -10,26 +10,20 @@
 
 # 0.1. libraries for fundamental data science and data processing
 
-import warnings
+
 import os
 import pandas as pd
 import numpy as np
 from scipy import stats
-from copy import deepcopy
-
-from igraph import Graph
-
 from ..utility.hdf5_processing import dump_hdf5, load_hdf5
 
-from .use_r_scripts import (_get_network_score_by_Rscripts_inparallel,
-                            _check_R_libraries_installation)
+from .use_r_scripts import _get_network_score_by_Rscripts, _get_network_score_by_Rscripts_inparallel
 from .network_structure_analysis import (plot_degree_distributions,
                                          plot_score_discributions,
                                          plot_network_entropy_distributions)
 
 from .gene_analysis import (plot_scores_as_rank,
                             plot_score_comparison_2D,
-                            plot_score_comparison_2D_with_plotly,
                             plot_score_per_cluster,
                             plot_cartography_scatter_per_cluster,
                             plot_cartography_term)
@@ -45,17 +39,7 @@ def load_links(file_path):
         Links: loaded links object.
 
     """
-    links = load_hdf5(filename=file_path, obj_class=Links)
-
-    _update_links_object(links)
-
-    return links
-
-def _update_links_object(links):
-    if hasattr(links, "thread_number"): # if the links object has old version attribute
-        if links.thread_number is not None:
-            links.threshold_number = deepcopy(links.thread_number)
-            delattr(links, "thread_number")
+    return load_hdf5(filename=file_path, obj_class=Links)
 
 class Links():
     """
@@ -118,10 +102,9 @@ class Links():
 
 
     def filter_links(self, p=0.001, weight="coef_abs",
-                     threshold_number=10000,
+                     thread_number=10000,
                      genelist_source=None,
-                     genelist_target=None,
-                     thread_number=None):
+                     genelist_target=None):
         """
 
         Filter network edges.
@@ -143,97 +126,35 @@ class Links():
             genelist_target (list of str): gene list to remain in target gene nodes. Default is None.
 
         """
-        if thread_number is not None:
-            threshold_number = thread_number
-
         self.filtered_links = {}
-        self.threshold_number=threshold_number
+        self.thread_number=thread_number
         for i in self.cluster:
-            self.filtered_links[i] = _thresholding(
+            self.filtered_links[i] = _threathlding(
                             linkList=self.links_dict[i],
                             p=p, weight=weight,
-                            threshold_number=threshold_number,
+                            thread_number=thread_number,
                             genelist_source=genelist_source,
                             genelist_target=genelist_target)
 
-
-
-
-    def get_network_score(self):
-
+    def get_score(self, test_mode=False):
         """
-        Get several network sores using igraph library.
-        The following scores are calculated: ['degree_all', 'degree_centrality_all', 'degree_in',
-       'degree_centrality_in', 'degree_out', 'degree_centrality_out',
-       'betweenness_centrality', 'eigenvector_centrality']
-
+        Get several network sores using R libraries.
+        Make sure all dependent R libraries are installed in your environment before running this function.
+        You can check the installation for the R libraries by running test_installation() in network_analysis module.
         """
-        if hasattr(self, "filtered_links"):
-            if isinstance(self.filtered_links, dict):
-                pass
-            else:
-                raise ValueError("Filtered network was not found. Prease run 'filter_links' first.")
-        else:
-            raise ValueError("Filtered network was not found. Prease run 'filter_links' first.")
-
-        network_scores = []
-        for key, val in self.filtered_links.items():
-            df = _get_network_score(filtered_linklist_df=val)
-            df["cluster"] = key
-            network_scores.append(df)
-        self.merged_score = pd.concat(network_scores, axis=0)
-
-    def _get_network_score_if_not_exist(self):
-        if hasattr(self, "merged_score"):
-            if isinstance(self.merged_score, pd.core.frame.DataFrame):
-                pass
-            else:
-                warnings.warn("\nNetwork score was not found. Celloracle will try to calculate network score first.",
-                              UserWarning)
-                self.get_network_score()
-        else:
-            warnings.warn("\nNetwork score was not found. Celloracle will try to calculate network score first.",
-                          UserWarning)
-            self.get_network_score()
-
-    def get_score(self, test_mode=False, n_jobs=-1):
-        """
-        Get several network sores using R-igraph, linkcomm, and rnetcarto.
-        This require R packages.
-        """
-        warnings.warn(
-            "This is the deprecated function. Please use 'get_network_score' instead. This function will be removed in the future version.",
-            DeprecationWarning
-        )
-
-        if _check_R_libraries_installation():
-            pass
-        else:
-            raise ValueError("This function is deprecated. Please use 'get_network_score' instead. If you still use this function, you need to install R packages. Please make sure these R packages are installed: 'igraph', 'linkcomm', 'rnetcarto'.")
-
-
-        li = list(self.filtered_links.keys()) # make list of cluster name
-
-        # make dictionary. we make unique id for each cluster and use it for temporary file name.
-        id_dict = {}
-        for id_, i in enumerate(li):
-            id_dict[i] = id_
 
 
         _get_network_score_by_Rscripts_inparallel(
             dict_links=self.filtered_links,
-            id_dict=id_dict,
-            output_folder="network_analysis",
-            message=False,
-            n_parallel=n_jobs)
-
+            output_folder=self.name,
+            GO=False, message=False)
         network_scores = {}
-        for i in li:
-            network_scores[i] = _load_network_analysis_results(f"./network_analysis/{id_dict[i]}")
+        for i in self.cluster:
+            network_scores[i] = _load_network_analysis_results(f"./{self.name}/"+i)
         self.merged_score = _merge_df(network_scores)
 
         if not test_mode:
-            os.system(f"rm -r ./network_analysis/")
+            os.system(f"rm -r ./{self.name}/")
 
         #print(f"the scores are saved in ./{self.name}/")
 
@@ -270,14 +191,6 @@ class Links():
                Plots will not be saved if [save=None]. Default is None.
 
         """
-        if hasattr(self, "filtered_links"):
-            if isinstance(self.filtered_links, dict):
-                pass
-            else:
-                raise ValueError("Filtered network was not found. Prease run 'filter_links' first.")
-        else:
-            raise ValueError("Filtered network was not found. Prease run 'filter_links' first.")
-
         plot_degree_distributions(links=self, plot_model=plot_model, save=save)
 
 
@@ -293,7 +206,6 @@ class Links():
             save (str): Folder path to save plots. If the folder does not exist in the path, the function creates the folder.
                Plots will not be saved if [save=None]. Default is None.
         """
-        self._get_network_score_if_not_exist()
         plot_score_discributions(links=self, values=values, method=method, save=save)
 
     def plot_network_entropy_distributions(self, update_network_entropy=False, save=None):
@@ -325,11 +237,9 @@ class Links():
             save (str): Folder path to save plots. If the folder does not exist in the path, the function creates the folder.
                Plots will not be saved if [save=None]. Default is None.
         """
-        self._get_network_score_if_not_exist()
-
         plot_scores_as_rank(links=self, cluster=cluster, n_gene=n_gene, save=save)
 
-    def plot_score_comparison_2D(self, value, cluster1, cluster2, percentile=99, annot_shifts=None, save=None, plt_show=True, interactive=False):
+    def plot_score_comparison_2D(self, value, cluster1, cluster2, percentile=99, annot_shifts=None, save=None):
         """
         Make a scatter plot that compares specific network scores in two groups.
 
@@ -343,15 +253,10 @@ class Links():
             save (str): Folder path to save plots. If the folder does not exist in the path, the function creates the folder.
                Plots will not be saved if [save=None]. Default is None.
         """
-        self._get_network_score_if_not_exist()
+        plot_score_comparison_2D(links=self, value=value, cluster1=cluster1, cluster2=cluster2,
+                                 percentile=percentile, annot_shifts=annot_shifts, save=save)
 
-        if interactive:
-            return plot_score_comparison_2D_with_plotly(links=self, value=value, cluster1=cluster1, cluster2=cluster2, fillna_with_zero=True)
-        else:
-            plot_score_comparison_2D(links=self, value=value, cluster1=cluster1, cluster2=cluster2,
-                                     percentile=percentile, annot_shifts=annot_shifts, save=save, plt_show=plt_show)
-
-    def plot_score_per_cluster(self, goi, save=None, plt_show=True):
+    def plot_score_per_cluster(self, goi, save=None):
         """
         Plot network score for a gene.
         This function visualizes the network score for a specific gene between clusters to get an insight into the dynamics of the gene.
@@ -362,16 +267,13 @@ class Links():
             save (str): Folder path to save plots. If the folder does not exist in the path, the function creates the folder.
                Plots will not be saved if [save=None]. Default is None.
         """
-        self._get_network_score_if_not_exist()
-
-        plot_score_per_cluster(links=self, goi=goi, save=save, plt_show=plt_show)
+        plot_score_per_cluster(links=self, goi=goi, save=save)
 
     def plot_cartography_scatter_per_cluster(self, gois=None, clusters=None,
                                              scatter=True, kde=False,
                                              auto_gene_annot=False, percentile=98,
                                              args_dot={"n_levels": 105}, args_line={"c":"gray"},
                                              args_annot={}, save=None):
-
         """
         Make a gene network cartography plot.
         Please read the original paper describing gene network cartography for more information.
@@ -391,24 +293,13 @@ class Links():
                Plots will not be saved if [save=None]. Default is None.
 
         """
-        warnings.warn(
-            "This is the deprecated function. This function will be removed in the future version.",
-            DeprecationWarning
-        )
-
-        if "role" not in self.merged_score.columns:
-            print("Cartography is not calculated yet. Please run 'get_score' first. This function require several R libraries.")
-            return None
-
         plot_cartography_scatter_per_cluster(links=self, gois=gois, clusters=clusters,
                                              scatter=scatter, kde=kde,
                                              auto_gene_annot=auto_gene_annot, percentile=percentile,
                                              args_dot=args_dot, args_line=args_line,
                                              args_annot=args_annot, save=save)
 
-    def plot_cartography_term(self, goi, save=None, plt_show=True):
-
-
+    def plot_cartography_term(self, goi, save=None):
         """
         Plot the gene network cartography term like a heatmap.
         Please read the original paper of gene network cartography for the principle of gene network cartography.
@@ -420,18 +311,7 @@ class Links():
             save (str): Folder path to save plots. If the folder does not exist in the path, the function creates the folder.
                Plots will not be saved if [save=None]. Default is None.
         """
-        warnings.warn(
-            "This is the deprecated function. This function will be removed in the future version.",
-            DeprecationWarning
-        )
-
-        if "role" not in self.merged_score.columns:
-            print("Cartography is not calculated yet. Please run 'get_score' first. This function require several R libraries.")
-            return None
-
-
-
-        plot_cartography_term(links=self, goi=goi, save=save, plt_show=plt_show)
+        plot_cartography_term(links=self, goi=goi, save=save)
 
 
 def _link2mat(link, value="coef_abs", fillna=0):
@@ -449,23 +329,19 @@ def _getNetworkEntropy(linkMat):
     tmp = linkMat.copy()
     ent = []
     ent_norm = []
-    genes = []
     for i in tmp.index:
-        if k[i] > 1:
-            en = stats.entropy(tmp.loc[i])
-            ent.append(en)
-            ent_norm.append(en/np.log(k[i]))
-            genes.append(i)
+        en = stats.entropy(tmp.loc[i])
+        ent.append(en)
+        ent_norm.append(en/np.log(k[i]))
 
     df = pd.DataFrame({"entropy": ent, "entropy_norm": ent_norm},
-                     index=genes).dropna(axis=0)
+                     index=tmp.index).dropna(axis=0)
     return df
 
 
 
-
-def _thresholding(linkList, p=None, weight="coef_abs",
-                 threshold_number=10000, genelist_source=None,
+def _threathlding(linkList, p=0.001, weight="coef_abs",
+                 thread_number=10000, genelist_source=None,
                 genelist_target=None):
     li = linkList.copy()
     if not genelist_source is None:
@@ -473,12 +349,11 @@ def _thresholding(linkList, p=None, weight="coef_abs",
     if not genelist_target is None:
         li = li[li.target.isin(genelist_target)]
 
-    if not p is None:
-        li = li[li["p"] <= p]
+    li = li[li["p"] <= p]
     li = li.sort_values(weight, ascending=False)
 
-    if not threshold_number is None:
-        li = li[:threshold_number]
+    if not thread_number is None:
+        li = li[:thread_number]
 
     #li = li[["source", "target", weight]]
 
@@ -508,30 +383,3 @@ def _merge_df(link_dict):
     merged = pd.concat(merged, axis=0)
 
     return merged
-
-def _get_network_score(filtered_linklist_df):
-    """
-    This is the function to get network score for each node.
-    This function is made to reproduce previous functions made with R-igraph.
-    """
-    # Make igraph object
-    g = Graph.DataFrame(filtered_linklist_df[["source", "target"]],
-                        directed=True,
-                        use_vids=False)
-    g.es["weight"] = filtered_linklist_df["coef_abs"].values.copy()
-
-    # Make placeholder
-    df = g.get_vertex_dataframe()
-
-    # Calculate scores
-    for i in ["all", "in", "out"]:
-        df[f"degree_{i}"] = g.degree(mode=i)
-        df[f"degree_centrality_{i}"] = df[f"degree_{i}"] / (df.shape[0]-1)
-    df["betweenness_centrality"] = g.betweenness(directed=True, weights="weight")
-    df["eigenvector_centrality"] = g.eigenvector_centrality(directed=False, weights="weight")
-
-    # Use gene name for index
-    df = df.set_index("name")
-    df.index.name = None
-
-    return df

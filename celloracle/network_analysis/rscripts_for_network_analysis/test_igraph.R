@@ -1,1 +1,3 @@
-suppressWarnings(library(igraph))
+library(igraph)
+
+

@@ -61,18 +61,18 @@ setup(
     author_email=author_email,
     url=url,
     license=license,
-    package_data={"celloracle": ["go_analysis/data/*.txt", "go_analysis/data/*.obo",
-                                 "data_conversion/*.R",
+    package_data={"celloracle": [
                                  "motif_analysis/tss_ref_data/*.bed",
                                  #"data/TFinfo_data/*.txt", "data/TFinfo_data/*.parquet",
                                  #"data/motif_data/*.txt", "data/motif_data/*.pfm",
                                  #"data/anndata/*.h5ad",
                                  #"data/tutorial_data/*.celloracle.oracle", "data/tutorial_data/*.celloracle.links",
                                  #"data/promoter_base_GRN/*.parquet",
-                                 "network_analysis/rscripts_for_network_analysis/*.R",
-                                 "utility/requirements.txt"]},
-    packages=["celloracle", "celloracle.data_conversion", "celloracle.network", "celloracle.trajectory",
-              "celloracle.data", "celloracle.go_analysis", "celloracle.oracle_utility",
-              "celloracle.motif_analysis", "celloracle.network_analysis", "celloracle.utility", "celloracle.applications", "celloracle.visualizations"],
+                                ]},
+    packages=["celloracle",
+              "celloracle.data",
+              "celloracle.motif_analysis",
+              "celloracle.utility"
+              ],
     entry_points={'console_scripts':['seuratToAnndata = celloracle.data_conversion.process_seurat_object:main']}
 )

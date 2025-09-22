@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from joblib import Parallel, delayed
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 
 from scipy.stats import ttest_1samp, norm
 
@@ -268,7 +268,7 @@ class Net():
                                              scaling=scaling,
                                              n_jobs=1,
                                              alpha=alpha)
-            if type(coefs) is int:
+            if type(coefs) is np.int:
                 fitted_gene = "na"
                 failed_gene = target_gene
             else:
@@ -293,7 +293,7 @@ class Net():
         self.failed_genes = failed_genes
 
     def fit_All_genes(self, bagging_number=200, scaling=True, model_method="bagging_ridge",
-                      command_line_mode=False, log=None, alpha=1, verbose=True, n_jobs=-1):
+                      command_line_mode=False, log=None, alpha=1, verbose=True):
         """
         Make ML models for all genes.
         The calculation will be performed in parallel using scikit-learn bagging function.
@@ -307,7 +307,6 @@ class Net():
             log (logging object): log object to output log
             alpha (int) : Strength of regularization.
             verbose (bool): Whether or not to show a progress bar.
-            n_jobs (int): Number of cpu cores for parallel calculation. -1 means using all available cores.
         """
         self.fit_genes(target_genes=self.all_genes,
                        bagging_number=bagging_number,
@@ -317,11 +316,10 @@ class Net():
                        command_line_mode=command_line_mode,
                        log=log,
                        alpha=alpha,
-                       verbose=verbose,
-                       n_jobs=n_jobs)
+                       verbose=verbose)
 
     def fit_genes(self, target_genes, bagging_number=200, scaling=True, model_method="bagging_ridge",
-                  save_coefs=False, command_line_mode=False, log=None, alpha=1, verbose=True, n_jobs=-1):
+                  save_coefs=False, command_line_mode=False, log=None, alpha=1, verbose=True):
         """
         Make ML models for genes of interest.
         This calculation will be performed in parallel using scikit-learn's bagging function.
@@ -337,16 +335,14 @@ class Net():
             log (logging object): log object to output log
             alpha (int) : Strength of regularization.
             verbose (bool): Whether or not to show a progress bar.
-            n_jobs (int): Number of cpu cores for parallel calculation.  -1 means using all available cores.
 
         """
         genes = np.array(intersect(target_genes, self.TFdict.keys()))
         genes = np.array(intersect(genes, self.all_genes))
         if verbose:
-            #print(f"method: {model_method}")
+            print(f"method: {model_method}")
             if model_method == "bagging_ridge":
-                #print(f"alpha: {alpha}")
-                pass
+                print(f"alpha: {alpha}")
 
         if command_line_mode:
 
@@ -363,11 +359,10 @@ class Net():
                                                      cellstate=self.cellstate,
                                                      bagging_number=bagging_number,
                                                      scaling=scaling,
-                                                     n_jobs=n_jobs,
                                                      alpha=alpha,
                                                      solver=RIDGE_SOLVER)
 
-                    if isinstance(coefs, int):
+                    if isinstance(coefs, np.int):
                         self.failed_genes.append(target_gene)
 
                     else:
@@ -392,7 +387,7 @@ class Net():
                                                   cellstate=self.cellstate,
                                                   scaling=True)
 
-                    if isinstance(coef_mean, int):
+                    if isinstance(coef_mean, np.int):
                         self.failed_genes.append(target_gene)
 
                     else:
@@ -426,11 +421,10 @@ class Net():
                                                      cellstate=self.cellstate,
                                                      bagging_number=bagging_number,
                                                      scaling=scaling,
-                                                     n_jobs=n_jobs,
                                                      alpha=alpha,
                                                      solver=RIDGE_SOLVER)
 
-                    if isinstance(coefs, int):
+                    if isinstance(coefs, np.int):
                         self.failed_genes.append(target_gene)
 
                     else:
@@ -448,7 +442,7 @@ class Net():
                                                   cellstate=self.cellstate,
                                                   scaling=True)
 
-                    if isinstance(coef_mean, int):
+                    if isinstance(coef_mean, np.int):
                         self.failed_genes.append(target_gene)
 
                     else:
@@ -606,7 +600,7 @@ class Net():
         compression_opts = 7
         dump_hdf5(obj=self, filename=file_path,
                   data_compression=compression_opts,  chunks=(2048, 2048),
-                  noarray_compression=compression_opts, pickle_protocol=4)
+                  noarray_compression=compression_opts, pickle_protocol=2)
 
 ####################################################
 ### 2. Define functions for transNet calculation ###
@@ -622,17 +616,13 @@ def _get_melted_df(df):
     return melted
 
 # this function process coefs to get several statistical values
-import warnings
-
 def _get_stats_df_bagging_ridge(df):
 
-    if isinstance(df, int):
+    if isinstance(df, np.int):
         return 0
 
     mean = df.mean()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        p = df.apply(lambda x: ttest_1samp(x.dropna(), 0)[1])
+    p = df.apply(lambda x: ttest_1samp(x.dropna(), 0)[1])
     neg_log_p = -np.log10(p.fillna(1))
 
     result = pd.concat([mean, mean.abs(),

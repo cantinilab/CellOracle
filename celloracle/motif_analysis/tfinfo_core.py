@@ -24,15 +24,16 @@ import numpy as np
 
 import sys
 import os
+import pickle
 import glob
+import logging
 from copy import deepcopy
 from datetime import datetime
 
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 
 from genomepy import Genome
 
-from gimmemotifs.motif import Motif
 from gimmemotifs.motif import default_motifs
 from gimmemotifs.scanner import Scanner
 
@@ -41,10 +42,10 @@ from ..utility import save_as_pickled_object, load_pickled_object, intersect,\
                       makelog, inverse_dictionary
 #
 from .motif_analysis_utility import scan_dna_for_motifs, is_genome_installed
-from .process_bed_file import read_bed, peak2fasta, remove_zero_seq
-from .motif_data import load_motifs
-from .reference_genomes import SUPPORTED_REF_GENOME
+from .process_bed_file import read_bed, peak2fasta
 
+SUPPORTED_REF_GENOME = {"Human": ['hg38', 'hg19', 'hg18', 'hg17', 'hg16'],
+                        "Mouse": ['mm10', 'mm9', 'mm8', 'mm7', 'micMur2', 'micMur1']}
 
 
 def load_TFinfo(file_path):
@@ -129,7 +130,7 @@ class TFinfo():
 
     """
 
-    def __init__(self, peak_data_frame, ref_genome, genomes_dir=None):
+    def __init__(self, peak_data_frame, ref_genome):
         """
         Instantiate TFinfo object.
 
@@ -138,9 +139,8 @@ class TFinfo():
 
            ref_genome (str): reference genome name that was used in DNA peak generation.
 
-           genomes_dir (str): Installation directory of Genomepy reference genome data. If None, use default Genomepy installation directory.
-
         """
+
 
         self.easy_log = pd.DataFrame()
         self.__addLog("initiation")
@@ -150,23 +150,25 @@ class TFinfo():
         self.peak_df = self.peak_df.groupby(["peak_id","gene_short_name"]).sum()
         self.peak_df = self.peak_df.reset_index(drop=False)
 
+
         self.all_target_gene = self.peak_df.gene_short_name.unique()
         self.all_peaks = self.peak_df.peak_id.unique()
 
         self.ref_genome = ref_genome
 
-        self.genomes_dir = genomes_dir
-
         # check ref_genome is supported or not
-        if ref_genome in SUPPORTED_REF_GENOME.ref_genome.values:
-            self.species = SUPPORTED_REF_GENOME.species[SUPPORTED_REF_GENOME.ref_genome==ref_genome].values[0]
+        if ref_genome in SUPPORTED_REF_GENOME["Mouse"]:
+            self.species = "Mouse"
+        elif ref_genome in SUPPORTED_REF_GENOME["Human"]:
+            self.species = "Human"
         else:
-            #print(f"ref_genome: {ref_genome} is not supported in celloracle. See celloracle.motif_analysis.SUPPORTED_REF_GENOME to get supported ref genome list. If you have a request for a new referencce genome, please post an issue in github issue page.")
-            self.species = "not_in_the_default_species_list"
+            raise ValueError(f"ref_genome: {ref_genome} is not supported in celloracle. See celloracle.motif_analysis.SUPPORTED_REF_GENOME to get supported ref genome list.")
 
         # check  genome installation
-        if not is_genome_installed(ref_genome=ref_genome, genomes_dir=self.genomes_dir):
+        if not is_genome_installed(ref_genome=ref_genome):
             raise ValueError(f"ref_genome: {ref_genome} is not installed. TFinfo initiation failed.")
+
+        self.dic_motif2TFs = _get_dic_motif2TFs(species=self.species)
 
         self.scanned_df = None
         self.TF_onehot = None
@@ -232,132 +234,11 @@ class TFinfo():
         compression_opts = 7
         dump_hdf5(obj=self, filename=file_path,
                   data_compression=compression_opts,  chunks=(2048, 2048),
-                  noarray_compression=compression_opts, pickle_protocol=4)
-        
-    def set_motifs(self, motifs=None, TF_formatting="auto", verbose=True):
-
-        if motifs is None:
-            if verbose:
-                print("No motif data entered. Loading default motifs for your species ...")
-
-            if self.species in ["Mouse", "Human", "Rat"]: # If species is vertebrate, we use gimmemotif default motifs as a default.
-                motifs = default_motifs()
-                self.motif_db_name = "gimme.vertebrate.v5.0"
-                self.TF_formatting = True
-                if verbose:
-                    print(" Default motif for vertebrate: gimme.vertebrate.v5.0. \n For more information, please see https://gimmemotifs.readthedocs.io/en/master/overview.html \n")
-
-            elif self.species in ["Zebrafish"]: # If species is Zebrafish, we use CisBP database.
-                self.motif_db_name = 'CisBP_ver2_Danio_rerio.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["S.cerevisiae"]:
-                self.motif_db_name = 'CisBP_ver2_Saccharomyces_cerevisiae.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Xenopus tropicalis"]:
-                #self.motif_db_name = 'CisBP_ver2_Xenopus_tropicalis_and_Xenopus_laevis.pfm' # V0.10.13 or earlier.
-                self.motif_db_name = 'CisBP_ver2_Xenopus_tropicalis.pfm' # V0.10.14 or later.
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}.")
-                    print(f" Default motif for {self.species} was changed at celloracle 0.10.14. \n For more information, please see celloracle documentation Changelog page. \n")
-
-            elif self.species in ["Xenopus laevis"]:
-                self.motif_db_name = 'CisBP_ver2_Xenopus_laevis.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Drosophila"]:
-                self.motif_db_name = 'CisBP_ver2_Drosophila_melanogaster.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["C.elegans"]:
-                self.motif_db_name = 'CisBP_ver2_Caenorhabditis_elegans.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Arabidopsis"]:
-                self.motif_db_name = 'CisBP_ver2_Arabidopsis_thaliana_GENE_ID.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Chicken"]:
-                self.motif_db_name = 'CisBP_ver2_Gallus_gallus.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Guinea_Pig"]:
-                self.motif_db_name = 'CisBP_ver2_Cavia_porcellus.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Pig"]:
-                self.motif_db_name = 'CisBP_ver2_Sus_scrofa.pfm'
-                motifs = load_motifs(self.motif_db_name)
-                self.TF_formatting = False
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see http://cisbp.ccbr.utoronto.ca. \n")
-
-            elif self.species in ["Axolotl"]:
-                self.motif_db_name = 'JASPAR2020_vertebrates.pfm'
-
-                # Load JASPAR motif from gimmemotifs data
-                from gimmemotifs.motif import read_motifs
-                from gimmemotifs.motif import MotifConfig
-                config = MotifConfig()
-                motif_dir = config.get_motif_dir()
-                path = os.path.join(motif_dir, "JASPAR2020_vertebrates.pfm")
-                motifs = read_motifs(path)
-
-                self.TF_formatting = True
-                if verbose:
-                    print(f" Default motif for {self.species}: {self.motif_db_name}. \n For more information about the motif data, please see https://gimmemotifs.readthedocs.io/en/master/overview.html \n")
-
-            else:
-                raise ValueError(f"We don't have default motifs for your species, Please specify motif data by yourself.")
-
-        else:
-            # Check format
-            if isinstance(motifs, list):
-                if isinstance(motifs[0], Motif):
-                    if verbose:
-                        print("Checking your motifs... Motifs format looks good. \n")
-                else:
-                    raise ValueError(f"Motif data type was invalid.")
-            else:
-                raise ValueError(f"motifs should be a list of Motif object in gimmemotifs.")
-
-            self.motif_db_name = "custom_motifs"
-            if TF_formatting == "auto":
-                self.TF_formatting = False
-            else:
-                self.TF_formatting = TF_formatting
-
-        self.motifs = motifs
+                  noarray_compression=compression_opts, pickle_protocol=2)
 
 
-    def scan(self, background_length=200, fpr=0.02, n_cpus=-1, verbose=True, motifs=None, TF_evidence_level="direct_and_indirect", TF_formatting="auto", batch_size=None, divide=100000):
+
+    def scan(self, background_length=200, fpr=0.02, n_cpus=-1, verbose=True):
         """
         Scan DNA sequences searching for TF binding motifs.
 
@@ -370,70 +251,32 @@ class TFinfo():
 
            verbose (bool): Whether to show a progress bar.
 
-           motifs (list): a list of gimmemotifs motifs, will revert to default_motifs() if None
-
-           TF_evidence_level (str): Please select one from ["direct", "direct_and_indirect"]. If "direct" is selected, TFs that have a binding evidence were used.
-               If "direct_and_indirect" is selected, TFs with binding evidence and inferred TFs are used.
-               For more information, please read explanation of Motif class in gimmemotifs documentation (https://gimmemotifs.readthedocs.io/en/master/index.html)
-
         """
-        
+
+
         self.fpr = fpr
         self.background_length = background_length
-
+        print("initiating scanner ...")
         ## 1. initialilze scanner  ##
-        # set motif
-        self.set_motifs(motifs=motifs, TF_formatting=TF_formatting, verbose=verbose)
-
-        self.dic_motif2TFs = _get_dic_motif2TFs(species=self.species, motifs=self.motifs, TF_evidence_level=TF_evidence_level, formatting=self.TF_formatting)
-        self.TF_evidence_level = TF_evidence_level
+        # load motif
+        motifs = default_motifs()
 
         # initialize scanner
-        if verbose:
-            print("Initiating scanner... \n")
-        
         s = Scanner(ncpus=n_cpus)
-        
-        # set parameters
-        s.set_motifs(self.motifs)
-        try:
-            s.set_background(genome=self.ref_genome, size=background_length) # For gimmemotifs ver 14.4
-        except:
-            s.set_background(genome=self.ref_genome, length=background_length)# For old gimmemotifs ver 13
 
+        # set parameters
+        s.set_motifs(motifs)
+        s.set_background(genome=self.ref_genome, length=background_length)
         #s.set_background(genome="mm9", length=400)
-        if verbose:
-            print("Calculating FPR-based threshold. This step may take substantial time when you load a new ref-genome. It will be done quicker on the second time. \n")
         s.set_threshold(fpr=fpr)
 
         ## 2. motif scan ##
-        # Get DNA sequences
-        target_sequences = peak2fasta(peak_ids=self.all_peaks, ref_genome=self.ref_genome, genomes_dir=self.genomes_dir)
-        # Remove DNA sequence with zero length
-        target_sequences = remove_zero_seq(fasta_object=target_sequences)
+        print("getting DNA sequences ...")
+        target_sequences = peak2fasta(self.all_peaks, self.ref_genome)
+        print("scanning motifs ...")
+        self.scanned_df = scan_dna_for_motifs(s, motifs, target_sequences, verbose)
 
-        if verbose:
-            print("Motif scan started .. It may take long time.\n")
-
-        #if n_mini_batch is None:
-        self.scanned_df = scan_dna_for_motifs(scanner_object=s,
-                                                motifs_object=self.motifs,
-                                                sequence_object=target_sequences,
-                                                divide=divide,
-                                                verbose=verbose,
-                                                batch_size=batch_size)
-        
-        #    self.__addLog("scanMotifs")
-
-        #else:
-        #    self.scanned_df = scan_dna_for_motifs_by_mini_batch(scanner_object=s,
-        #                                                        motifs_object=self.motifs,
-        #                                                        sequence_object=target_sequences,
-        #                                                        n_batch=n_mini_batch,
-        #                                                        verbose=verbose)
-        #    self.__addLog("scanMotifs using mini batch mode")
-
-    
+        self.__addLog("scanMotifs")
 
     def reset_dictionary_and_df(self):
         """
@@ -480,21 +323,21 @@ class TFinfo():
         self.thresholding_comment.append(f"threshold peaks")
         self.__addLog("setThresholding_byBindScore")
 
-    def filter_motifs_by_score(self, threshold, method="cumulative_score"):
+    def filter_motifs_by_score(self, threshold, method="cumlative_score"):
         """
         Remove motifs with low binding scores.
 
         Args:
-            method (str): thresholding method. Select either of ["indivisual_score", "cumulative_score"]
+            method (str): thresholding method. Select either of ["indivisual_score", "cumlative_score"]
         """
-        if method == "cumulative_score":
-            self._thresholding_by_cumulative_bind_score(threshold_score=threshold)
+        if method == "cumlative_score":
+            self._thresholding_by_cumlative_bind_score(threshold_score=threshold)
 
         elif method == "indivisual_score":
             self._thresholding_by_bind_score(threshold_score=threshold)
 
         else:
-            raise ValueError("Method is wrong. Select from ['indivisual_score', 'cumulative_score'] ")
+            raise ValueError("Method is wrong. Select from ['indivisual_score', 'cumlative_score'] ")
 
 
     def _thresholding_by_bind_score(self, threshold_score):
@@ -507,7 +350,7 @@ class TFinfo():
         before = len(self.scanned_filtered)
         self.scanned_filtered = self.scanned_filtered[self.scanned_filtered.score>=threshold_score]
         after = len(self.scanned_filtered)
-        print(f"Filtering finished: {before} -> {after}")
+        print(f"peaks were filtered: {before} -> {after}")
 
         self.reset_dictionary_and_df()
 
@@ -515,7 +358,7 @@ class TFinfo():
         self.__addLog("thresholdingByBindScore")
 
 
-    def _thresholding_by_cumulative_bind_score(self, threshold_score):
+    def _thresholding_by_cumlative_bind_score(self, threshold_score):
         if self.scanned_df is None:
             raise ValueError("Motif Scan is not done.")
 
@@ -532,7 +375,7 @@ class TFinfo():
         self.reset_dictionary_and_df()
 
         after = len(self.scanned_filtered)
-        print(f"Filtering finished: {before} -> {after}")
+        print(f"peaks were filtered: {before} -> {after}")
         self.__addLog("thresholdingByAcumulatedBindScore")
 
     def make_TFinfo_dataframe_and_dictionary(self, verbose=True):
@@ -547,11 +390,11 @@ class TFinfo():
             self.scanned_filtered = self.scanned_df[["seqname", "motif_id", "score"]].copy()
 
         if verbose:
-            print("1. Converting scanned results into one-hot encoded dataframe.")
+            print("1. converting scanned results into one-hot encoded dataframe.")
         self._make_TFinfo_dataframe(verbose=verbose)
 
         if verbose:
-            print("2. Converting results into dictionaries.")
+            print("2. converting results into dictionaries.")
             self._make_dictionaries(verbose=verbose)
 
     def _make_TFinfo_dataframe(self, verbose=True):
@@ -616,6 +459,9 @@ class TFinfo():
         """
         if self.TF_onehot is None:
             raise ValueError("Process has not complete yet.")
+
+        if verbose:
+            print("converting scan results into dictionaries...")
 
         dic_targetgene2TFs ={}
         dic_peak2Targetgene = {}
@@ -709,49 +555,48 @@ class TFinfo():
 ### 4.2. Make TFinfo dataFrame for GRN inference  ###
 ######################################################
 
-from gimmemotifs.config import DIRECT_NAME, INDIRECT_NAME
 
 
-def _get_dic_motif2TFs(species, motifs, TF_evidence_level="direct_and_indirect", formatting=True):
-    """
+def _get_dic_motif2TFs(species):
 
-    Args:
-
-    TF_evidence_level (str): Please select one from ["direct", "direct_and_indirect"]. If "direct" is selected, TFs that have a binding evidence were used.
-        If "direct_and_indirect" is selected, TFs with binding evidence and inferred TFs are used.
-        For more information, please read explanation of Motif class in gimmemotifs documentation (https://gimmemotifs.readthedocs.io/en/master/index.html)
-
-    """
-
-    if TF_evidence_level == "direct_and_indirect":
-        factor_kind = [DIRECT_NAME, INDIRECT_NAME]
-    elif TF_evidence_level == "direct":
-        factor_kind = [DIRECT_NAME]
+    motifs  = default_motifs()
+    motif_names = [i.id for i in motifs]
+    factors_direct = [i.factors["direct"] for i in motifs]
+    factors_indirect = [i.factors["indirect"] for i in motifs]
 
     dic_motif2TFs = {}
-
-    for i in motifs:
-        fcs = []
-        for j in factor_kind:
-            fcs += i.factors[j]
-        dic_motif2TFs[i.id] = fcs
-
-    if formatting:
-        if species in ["Mouse", "Rat"]:
-            for key in dic_motif2TFs.keys():
-                dic_motif2TFs[key] = [tf.capitalize() for tf in dic_motif2TFs[key]]
-
-        elif species in ["Human", "S.cerevisiae", "Arabidopsis", "Axolotl"]:
-            for key in dic_motif2TFs.keys():
-                dic_motif2TFs[key] = [tf.upper() for tf in dic_motif2TFs[key]]
-
-        elif species in ["Zebrafish", "Xenopus"]:
-            for key in dic_motif2TFs.keys():
-                dic_motif2TFs[key] = [tf.lower() for tf in dic_motif2TFs[key]]
-
-        elif species in ["Drosophila", "C.elegans"]:
-            pass
+    if species == "Mouse":
+        for i in motifs:
+            fcs = i.factors["direct"] + i.factors["indirect"]
+            dic_motif2TFs[i.id] = [fa.capitalize() for fa in fcs]
+    if species == "Human":
+        for i in motifs:
+            fcs = i.factors["direct"] + i.factors["indirect"]
+            dic_motif2TFs[i.id] = [fa.upper() for fa in fcs]
 
     return dic_motif2TFs
 
 
+
+
+#########################################################
+### 4.2. Calculate P-values; Multi processing version ###
+#########################################################
+
+
+
+#########################
+### 5.1 Visualization ###
+#########################
+
+
+
+
+######################
+### 6. GO analysis ###
+######################
+
+
+#############################
+### Scoring with ML model ###
+#############################

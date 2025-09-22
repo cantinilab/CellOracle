@@ -30,20 +30,17 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 
-from tqdm.auto import tqdm
+from tqdm import tqdm_notebook as tqdm
 
 from pybedtools import BedTool
 
 from ..motif_analysis import __path__ as parent_path
 from .process_bed_file import list_peakstr_to_df
-from .reference_genomes import SUPPORTED_REF_GENOME
 
 def _load_tss_ref_data(ref_genome):
 
     """
-    Args:
-        ref_genome (str): Reference genome name.
-            Please contact us through github issue page if you have a request for another referene genome.
+
     """
     path = os.path.join(parent_path[0], "tss_ref_data", f"{ref_genome}_tss_info.bed")
     return BedTool(fn=path)
@@ -51,7 +48,7 @@ def _load_tss_ref_data(ref_genome):
 
 
 
-def get_tss_info(peak_str_list, ref_genome, verbose=True, custom_tss_file_path=None):
+def get_tss_info(peak_str_list, ref_genome, verbose=True):
     """
     Get annotation about Transcription Starting Site (TSS).
 
@@ -59,15 +56,8 @@ def get_tss_info(peak_str_list, ref_genome, verbose=True, custom_tss_file_path=N
         peak_str_list (list of str): list of peak_id. e.g., [“chr5_0930303_9499409”, “chr11_123445555_123445577”]
         ref_genome (str): reference genome name.
         verbose (bool): verbosity.
-        custom_tss_file_path (str): File path to the custom TSS reference bed file. If you just want to use reference genome that are supported in the CellOracle, you don't need to set this parameter.
     """
-    if custom_tss_file_path is not None:
-        ref = BedTool(fn=custom_tss_file_path)
-    else:
-        if ref_genome not in SUPPORTED_REF_GENOME.ref_genome.values:
-            raise ValueError(f"ref_genome: {ref_genome} is not supported in celloracle. See celloracle.motif_analysis.SUPPORTED_REF_GENOME to get supported ref genome list. If you have a request for a new referencce genome, please post an issue in github issue page.")
-
-        ref = _load_tss_ref_data(ref_genome=ref_genome)
+    ref = _load_tss_ref_data(ref_genome=ref_genome)
 
     queue = list_peakstr_to_df(peak_str_list)
     queue = BedTool.from_dataframe(queue)

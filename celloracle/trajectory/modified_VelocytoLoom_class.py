@@ -19,16 +19,13 @@ from velocyto.diffusion import Diffusion
 from velocyto.estimation import (colDeltaCor, colDeltaCorLog10,
                                  colDeltaCorLog10partial, colDeltaCorpartial,
                                  colDeltaCorSqrt, colDeltaCorSqrtpartial)
-#from velocyto.neighbors import (BalancedKNN, connectivity_to_weights,
-#                                convolve_by_sparse_weights,
-#                                knn_distance_matrix)
-from .neighbors import (BalancedKNN, connectivity_to_weights,
+from velocyto.neighbors import (BalancedKNN, connectivity_to_weights,
                                 convolve_by_sparse_weights,
                                 knn_distance_matrix)
-#from velocyto.serialization import dump_hdf5, load_hdf5
+from velocyto.serialization import dump_hdf5, load_hdf5
 
 
-#from tqdm.auto import tqdm
+#from tqdm import tqdm_notebook as tqdm
 from .oracle_utility import _adata_to_matrix, _adata_to_df, _get_clustercolor_from_anndata
 
 
@@ -256,15 +253,13 @@ class modified_VelocytoLoom():
         Xx = convolve_by_sparse_weights(X, self.knn_smoothing_w)
         self.adata.layers["imputed_count"] = Xx.transpose().copy()
 
-        self.k_knn_imputation = k
-
 
     def estimate_transition_prob(self,
                                  n_neighbors: int=None,
                                  knn_random: bool=True, sampled_fraction: float=0.3,
                                  sampling_probs: Tuple[float, float]=(0.5, 0.1),
                                  n_jobs: int=4, threads: int=None, calculate_randomized: bool=True,
-                                 random_seed: int=15071990, cell_idx_use=None) -> None:
+                                 random_seed: int=15071990) -> None:
         """Use correlation to estimate transition probabilities for every cells to its embedding neighborhood
 
         Arguments
@@ -320,17 +315,9 @@ class modified_VelocytoLoom():
                 permute_rows_nsign(delta_X_rndm)
 
             logging.debug("Calculate KNN in the embedding space")
-
-            if cell_idx_use is None:
-                nn = NearestNeighbors(n_neighbors=n_neighbors + 1, n_jobs=n_jobs)
-                nn.fit(embedding)  # NOTE should support knn in high dimensions
-                self.embedding_knn = nn.kneighbors_graph(mode="connectivity")
-
-            else:
-                self.embedding_knn = calculate_embedding_knn_with_cell_idx(embedding_original=self.embedding,
-                                                                           cell_idx_use=cell_idx_use,
-                                                                           n_neighbors=n_neighbors,
-                                                                           n_jobs=n_jobs)
+            nn = NearestNeighbors(n_neighbors=n_neighbors + 1, n_jobs=n_jobs)
+            nn.fit(embedding)  # NOTE should support knn in high dimensions
+            self.embedding_knn = nn.kneighbors_graph(mode="connectivity")
 
             # Pick random neighbours and prune the rest
             neigh_ixs = self.embedding_knn.indices.reshape((-1, n_neighbors + 1))
@@ -342,10 +329,10 @@ class modified_VelocytoLoom():
             # Not updated yet not to break previous analyses
             # Fix is substituting below `neigh_ixs.shape[1]` with `np.arange(1,neigh_ixs.shape[1]-1)`
             # I change it here since I am doing some breaking changes
-            sampling_ixs = np.stack([np.random.choice(neigh_ixs.shape[1],
+            sampling_ixs = np.stack((np.random.choice(neigh_ixs.shape[1],
                                                       size=(int(sampled_fraction * (n_neighbors + 1)),),
                                                       replace=False,
-                                                      p=p) for i in range(neigh_ixs.shape[0])], 0)
+                                                      p=p) for i in range(neigh_ixs.shape[0])), 0)
             self.sampling_ixs = sampling_ixs
             neigh_ixs = neigh_ixs[np.arange(neigh_ixs.shape[0])[:, None], sampling_ixs]
             nonzero = neigh_ixs.shape[0] * neigh_ixs.shape[1]
@@ -367,14 +354,12 @@ class modified_VelocytoLoom():
 
             if np.any(np.isnan(self.corrcoef)):
                 self.corrcoef[np.isnan(self.corrcoef)] = 1
-                logging.debug("Nans encountered in corrcoef and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
-                #logging.warning("Nans encountered in corrcoef and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
+                logging.warning("Nans encountered in corrcoef and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
             if calculate_randomized:
                 np.fill_diagonal(self.corrcoef_random, 0)
                 if np.any(np.isnan(self.corrcoef_random)):
                     self.corrcoef_random[np.isnan(self.corrcoef_random)] = 1
-                    #logging.warning("Nans encountered in corrcoef and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
-                    logging.debug("Nans encountered in corrcoef_random and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
+                    logging.warning("Nans encountered in corrcoef_random and corrected to 1s. If not identical cells were present it is probably a small isolated cluster converging after imputation.")
             logging.debug(f"Done Correlation Calculation")
         else:
             self.corr_calc = "full"
@@ -421,11 +406,11 @@ class modified_VelocytoLoom():
 
         # NOTE maybe sparse matrix here are slower than dense
         # NOTE if knn_random this could be made much faster either using sparse matrix or neigh_ixs
-        self.transition_prob = np.exp(self.corrcoef / sigma_corr) * self.embedding_knn.toarray()  # naive
+        self.transition_prob = np.exp(self.corrcoef / sigma_corr) * self.embedding_knn.A  # naive
         self.transition_prob /= self.transition_prob.sum(1)[:, None]
         if hasattr(self, "corrcoef_random"):
             logging.debug("Calculate transition probability for negative control")
-            self.transition_prob_random = np.exp(self.corrcoef_random / sigma_corr) * self.embedding_knn.toarray()  # naive
+            self.transition_prob_random = np.exp(self.corrcoef_random / sigma_corr) * self.embedding_knn.A  # naive
             self.transition_prob_random /= self.transition_prob_random.sum(1)[:, None]
 
         unitary_vectors = self.embedding.T[:, None, :] - self.embedding.T[:, :, None]  # shape (2,ncells,ncells)
@@ -435,18 +420,18 @@ class modified_VelocytoLoom():
             np.fill_diagonal(unitary_vectors[1, ...], 0)
 
         self.delta_embedding = (self.transition_prob * unitary_vectors).sum(2)
-        self.delta_embedding -= (self.embedding_knn.toarray() * unitary_vectors).sum(2) / self.embedding_knn.sum(1).A.T
+        self.delta_embedding -= (self.embedding_knn.A * unitary_vectors).sum(2) / self.embedding_knn.sum(1).A.T
         self.delta_embedding = self.delta_embedding.T
 
 
         if hasattr(self, "corrcoef_random"):
             self.delta_embedding_random = (self.transition_prob_random * unitary_vectors).sum(2)
-            self.delta_embedding_random -= (self.embedding_knn.toarray() * unitary_vectors).sum(2) / self.embedding_knn.sum(1).A.T
+            self.delta_embedding_random -= (self.embedding_knn.A * unitary_vectors).sum(2) / self.embedding_knn.sum(1).A.T
             self.delta_embedding_random = self.delta_embedding_random.T
 
 
     def calculate_grid_arrows(self, smooth: float=0.5, steps: Tuple=(40, 40),
-                              n_neighbors: int=100, n_jobs: int=4, xylim: Tuple=((None, None), (None, None))) -> None:
+                              n_neighbors: int=100, n_jobs: int=4) -> None:
         """Calculate the velocity using a points on a regular grid and a gaussian kernel
 
         Note: the function should work also for n-dimensional grid
@@ -467,8 +452,6 @@ class modified_VelocytoLoom():
             Higher value correspond to slower execution time
         n_jobs:
             number of processes for parallel computing
-        xymin:
-            ((xmin, xmax), (ymin, ymax))
 
         Returns
         -------
@@ -495,12 +478,6 @@ class modified_VelocytoLoom():
         grs = []
         for dim_i in range(embedding.shape[1]):
             m, M = np.min(embedding[:, dim_i]), np.max(embedding[:, dim_i])
-
-            if xylim[dim_i][0] is not None:
-                m = xylim[dim_i][0]
-            if xylim[dim_i][1] is not None:
-                M = xylim[dim_i][1]
-
             m = m - 0.025 * np.abs(M - m)
             M = M + 0.025 * np.abs(M - m)
             gr = np.linspace(m, M, steps[dim_i])
@@ -582,26 +559,6 @@ class modified_VelocytoLoom():
         self.tr = self.tr / self.tr.sum(1)[:, None]
         self.tr = scipy.sparse.csr_matrix(self.tr)
 
-        if hasattr(self, "corrcoef_random"):
-            if direction == "forward":
-                self.tr_random = np.array(self.transition_prob_random[cells_ixs, :][:, cells_ixs])
-            elif direction == "backwards":
-                self.tr_random = np.array((self.transition_prob_random[cells_ixs, :][:, cells_ixs]).T, order="C")
-            else:
-                raise NotImplementedError(f"{direction} is not an implemented direction")
-            #dist_matrix = squareform(pdist(self.embedding[cells_ixs, :]))
-            #K_D = gaussian_kernel(dist_matrix, sigma=sigma_D)
-            self.tr_random = self.tr_random * K_D
-            # Fill diagonal with max or the row and sum=1 normalize
-            np.fill_diagonal(self.tr_random, self.tr_random.max(1))
-            self.tr_random = self.tr_random / self.tr_random.sum(1)[:, None]
-
-            #K_W = gaussian_kernel(dist_matrix, sigma=sigma_W)
-            #K_W = K_W / K_W.sum(1)[:, None]
-            self.tr_random = 0.8 * self.tr_random + 0.2 * K_W
-            self.tr_random = self.tr_random / self.tr_random.sum(1)[:, None]
-            self.tr_random = scipy.sparse.csr_matrix(self.tr_random)
-
     def run_markov(self, starting_p: np.ndarray=None, n_steps: int=2500, mode: str="time_evolution") -> None:
         """Run a Markov process
 
@@ -628,14 +585,29 @@ class modified_VelocytoLoom():
         diffusor = Diffusion()
         self.diffused = diffusor.diffuse(starting_p, self.tr, n_steps=n_steps, mode=mode)[0]
 
+    def plot_mc_resutls_as_density(self, args={}):
+        """
+        this function plot the results of mc chain simulation in velocyto method.
+        """
+        diffused_n = self.diffused - np.percentile(self.diffused, 3)
+        diffused_n /= np.percentile(diffused_n, 97)
+        diffused_n = np.clip(diffused_n, 0, 1)
+        #diffused_n = tv.diffused
+        #plt.figure(None,(7,7))
+        args_ = {"alpha": 0.5, "s": 50, "lw": 0., "edgecolor":"", "cmap": "viridis_r", "rasterized": True}
+        args_.update(args)
+
+        plt.scatter(self.embedding[self.ixs_mcmc, 0], self.embedding[self.ixs_mcmc, 1],
+                        c=diffused_n, **args_)
+        plt.axis("off")
+        cax = plt.axes([0.85, 0.1, 0.075, 0.8])
+        plt.colorbar()
+        plt.axis("off")
 
 
 
     def plot_grid_arrows(self, quiver_scale: Union[str, float]="auto", scale_type: str= "relative", min_mass: float=1, min_magnitude: float=None,
                          scatter_kwargs_dict: Dict= None, plot_dots: bool=False, plot_random: bool=False, **quiver_kwargs: Any) -> None:
-        print("This function is deprecated after celloracle ver 0.9.4. Please see our newest tutorial for the alternative functions. \nhttps://morris-lab.github.io/CellOracle.documentation/tutorials/index.html")
-
-        '''
         """Plots vector field averaging velocity vectors on a grid
 
         Arguments
@@ -711,23 +683,22 @@ class modified_VelocytoLoom():
             else:
                 UV[mass_filter | (self.flow_norm_magnitude < min_magnitude), :] = 0
 
-
-        if min_magnitude is None:
-            XY, UV_rndm = np.copy(self.flow_grid), np.copy(self.flow_rndm)
-            if not plot_dots:
-                UV_rndm = UV_rndm[~mass_filter, :]
-                XY = XY[~mass_filter, :]
-            else:
-                UV_rndm[mass_filter, :] = 0
-        else:
-            XY, UV_rndm = np.copy(self.flow_grid), np.copy(self.flow_norm_rndm)
-            if not plot_dots:
-                UV_rndm = UV_rndm[~(mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude)), :]
-                XY = XY[~(mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude)), :]
-            else:
-                UV_rndm[mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude), :] = 0
-
         if plot_random:
+            if min_magnitude is None:
+                XY, UV_rndm = np.copy(self.flow_grid), np.copy(self.flow_rndm)
+                if not plot_dots:
+                    UV_rndm = UV_rndm[~mass_filter, :]
+                    XY = XY[~mass_filter, :]
+                else:
+                    UV_rndm[mass_filter, :] = 0
+            else:
+                XY, UV_rndm = np.copy(self.flow_grid), np.copy(self.flow_norm_rndm)
+                if not plot_dots:
+                    UV_rndm = UV_rndm[~(mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude)), :]
+                    XY = XY[~(mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude)), :]
+                else:
+                    UV_rndm[mass_filter | (self.flow_norm_magnitude_rndm < min_magnitude), :] = 0
+
             plt.subplot(122)
             plt.title("Randomized")
             plt.scatter(self.flow_embedding[:, 0], self.flow_embedding[:, 1], **scatter_dict)
@@ -741,14 +712,10 @@ class modified_VelocytoLoom():
         plt.quiver(XY[:, 0], XY[:, 1], UV[:, 0], UV[:, 1],
                    scale=quiver_scale, zorder=20000, **_quiver_kwargs)
         plt.axis("off")
-        '''
 
     def plot_arrows_embedding(self, choice: Union[str, int]="auto", quiver_scale: Union[str, float]="auto", scale_type: str="relative",
                               plot_scatter: bool=False, scatter_kwargs: Dict={}, color_arrow: str="cluster",
                               new_fig: bool=False, plot_random: bool=True, **quiver_kwargs: Any) -> None:
-        print("This function is deprecated after celloracle ver 0.9.4. Please see our newest tutorial for the alternative functions. \nhttps://morris-lab.github.io/CellOracle.documentation/tutorials/index.html")
-
-        '''
         """Plots velocity on the embedding cell-wise
 
         Arguments
@@ -848,16 +815,10 @@ class modified_VelocytoLoom():
                    self.delta_embedding[ix_choice, 0], self.delta_embedding[ix_choice, 1],
                    scale=quiver_scale, **_quiver_kwargs)
         plt.axis("off")
-        '''
 
     def plot_cell_transitions(self, cell_ix: int=0, alpha: float=0.1, alpha_neigh: float=0.2,
                               cmap_name: str="RdBu_r", plot_arrow: bool=True,
                               mark_cell: bool=True, head_width: int=3) -> None:
-
-        print("This function is deprecated after celloracle ver 0.9.4. Please see our newest tutorial for the alternative functions. \nhttps://morris-lab.github.io/CellOracle.documentation/tutorials/index.html")
-
-        '''
-
         """Plot the probability of a cell to transition to any other cell
 
         This function is untested
@@ -876,7 +837,7 @@ class modified_VelocytoLoom():
             plt.arrow(self.embedding[cell_ix, 0], self.embedding[cell_ix, 1],
                       self.delta_embedding[cell_ix, 0], self.delta_embedding[cell_ix, 1],
                       head_width=head_width, length_includes_head=True)
-        '''
+
 
 
 
@@ -916,31 +877,6 @@ def scatter_viz(x: np.ndarray, y: np.ndarray, *args: Any, **kwargs: Any) -> Any:
 
 
 
-def calculate_embedding_knn_with_cell_idx(embedding_original, cell_idx_use, n_neighbors, n_jobs=4):
-
-    """
-    Calculate knn graph focusing on a cell population.
-
-    """
-
-
-    nn = NearestNeighbors(n_neighbors=n_neighbors + 1, n_jobs=n_jobs)
-    nn.fit(embedding_original[cell_idx_use, :])  # NOTE should support knn in high dimensions
-    embedding_knn = nn.kneighbors_graph(mode="connectivity")
-
-    #print(embedding_knn.indices.max())
-
-    indices_in_original_emb = cell_idx_use[embedding_knn.indices]
-    neigh_ixs = np.zeros((embedding_original.shape[0], n_neighbors + 1))
-    neigh_ixs[cell_idx_use, :] = indices_in_original_emb.reshape((-1, n_neighbors + 1))
-
-    nonzero = neigh_ixs.shape[0] * neigh_ixs.shape[1]
-    embedding_knn = sparse.csr_matrix((np.ones(nonzero),
-                                      neigh_ixs.ravel(),
-                                      np.arange(0, nonzero + 1, neigh_ixs.shape[1])),
-                                      shape=(neigh_ixs.shape[0],
-                                             neigh_ixs.shape[0]))
-    return embedding_knn
 
 
 @jit(nopython=True)
