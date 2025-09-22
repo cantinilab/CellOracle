@@ -2,7 +2,6 @@ numpy==1.26.4
 scipy
 cython
 numba>=0.50.1
-matplotlib<3.7
 scikit-learn
 pandas
 tqdm>=4.45
