@@ -4,7 +4,7 @@ cython
 numba>=0.50.1
 matplotlib<3.7
 scikit-learn
-pandas>=1.0.3, <=1.5.3
+pandas
 tqdm>=4.45
 IPython
 anndata>=0.7.5
