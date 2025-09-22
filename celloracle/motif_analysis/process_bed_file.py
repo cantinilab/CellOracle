@@ -22,7 +22,7 @@ import numpy as np
 
 import sys, os
 
-from tqdm import tqdm_notebook as tqdm
+from tqdm.auto import tqdm
 
 # 0.2. libraries for DNA and genome data wrangling and Motif analysis
 from genomepy import Genome
@@ -36,7 +36,64 @@ from pybedtools import BedTool
 
 ####
 ### bed f
-def peakstr_to_int(peak_str):
+
+def check_peak_format(peaks_df, ref_genome, genomes_dir=None):
+    """
+    Check peak format.
+     (1) Check chromosome name.
+     (2) Check peak size (length) and remove sort DNAs (<5bp)
+
+    Args:
+        peaks_df (pandas.DataFrame):
+        ref_genome (str): Reference genome name.   e.g. "mm9", "mm10", "hg19" etc
+        genomes_dir (str): Installation directory of Genomepy reference genome data.
+
+    Returns:
+        pandas.DataFrame: Peaks data after filtering.
+
+    """
+
+    df = peaks_df.copy()
+
+    n_peaks_before = df.shape[0]
+
+    # Decompose peaks and make df
+    decomposed = [decompose_chrstr(peak_str) for peak_str in df["peak_id"]]
+    df_decomposed = pd.DataFrame(np.array(decomposed))
+    df_decomposed.columns = ["chr", "start", "end"]
+    df_decomposed["start"] = df_decomposed["start"].astype(int)
+    df_decomposed["end"] = df_decomposed["end"].astype(int)
+
+    # Load genome data
+    genome_data = Genome(name=ref_genome, genomes_dir=genomes_dir)
+    all_chr_list = list(genome_data.keys())
+
+
+    # DNA length check
+    lengths = np.abs(df_decomposed["end"] - df_decomposed["start"])
+
+
+    # Filter peaks with invalid chromosome name
+    n_threshold = 5
+    df = df[(lengths >= n_threshold) & df_decomposed.chr.isin(all_chr_list)]
+
+    # DNA length check
+    lengths = np.abs(df_decomposed["end"] - df_decomposed["start"])
+
+    # Data counting
+    n_invalid_length = len(lengths[lengths < n_threshold])
+    n_peaks_invalid_chr = n_peaks_before - df_decomposed.chr.isin(all_chr_list).sum()
+    n_peaks_after = df.shape[0]
+
+    #
+    print("Peaks before filtering: ", n_peaks_before)
+    print("Peaks with invalid chr_name: ", n_peaks_invalid_chr)
+    print("Peaks with invalid length: ", n_invalid_length)
+    print("Peaks after filtering: ", n_peaks_after)
+
+    return df
+
+def decompose_chrstr(peak_str):
     """
     Take peak name as input and return splitted strs.
 
@@ -47,11 +104,13 @@ def peakstr_to_int(peak_str):
         tuple: splitted peak name.
 
     Examples:
-       >>> peakstr_to_int("chr1_111111_222222")
+       >>> decompose_chrstr("chr1_111111_222222")
        "chr1", "111111", "222222"
     """
-    sp = peak_str.split("_")
-    return sp[0], sp[1], sp[2]
+    *chr_, start, end = peak_str.split("_")
+    chr_ = "_".join(chr_)
+
+    return chr_, start, end
 
 def list_peakstr_to_df(x):
     """
@@ -71,10 +130,10 @@ def list_peakstr_to_df(x):
             1	chr1	3113499	3113979
             2	chr1	3119478	3121690
     """
-    df = np.array([peakstr_to_int(i) for i in x])
+    df = np.array([decompose_chrstr(i) for i in x])
     df = pd.DataFrame(df, columns=["chr", "start", "end"])
-    df["start"] = df["start"].astype(np.int)
-    df["end"] = df["end"].astype(np.int)
+    df["start"] = df["start"].astype(int)
+    df["end"] = df["end"].astype(int)
     return df
 
 def df_to_list_peakstr(x):
@@ -107,11 +166,11 @@ def peak_M1(peak_id):
         >>> peak_M1(a)
         "chr11_123445554_123445577"
     """
-    i = peak_id.split("_")
-    return i[0] + "_" + str(int(i[1])-1) + "_" + i[2]
+    chr_, start, end = decompose_chrstr(peak_id)
+    return chr_ + "_" + str(int(start)-1) + "_" + end
 
 
-def peak2fasta(peak_ids, ref_genome):
+def peak2fasta(peak_ids, ref_genome, genomes_dir):
 
     '''
     Convert peak_id into fasta object.
@@ -122,15 +181,18 @@ def peak2fasta(peak_ids, ref_genome):
 
         ref_genome (str): Reference genome name.   e.g. "mm9", "mm10", "hg19" etc
 
+        genomes_dir (str): Installation directory of Genomepy reference genome data.
+
     Returns:
         gimmemotifs fasta object: DNA sequence in fasta format
 
     '''
-    genome_data = Genome(ref_genome)
+    genome_data = Genome(ref_genome, genomes_dir=genomes_dir)
 
     def peak2seq(peak_id):
-        chromosome_name = peak_id.split("_")[0]
-        locus = (int(peak_id.split("_")[1]),int(peak_id.split("_")[2]))
+        chromosome_name, start, end = decompose_chrstr(peak_id)
+        locus = (int(start),int(end))
+
         tmp = genome_data[chromosome_name][locus[0]:locus[1]]
         name = f"{tmp.name}_{tmp.start}_{tmp.end}"
         seq = tmp.seq
@@ -147,6 +209,16 @@ def peak2fasta(peak_ids, ref_genome):
 
     return fasta
 
+def remove_zero_seq(fasta_object):
+    """
+    Remove DNA sequence with zero length
+    """
+    fasta = Fasta()
+    for i, seq in enumerate(fasta_object.seqs):
+        if seq:
+            name = fasta_object.ids[i]
+            fasta.add(name, seq)
+    return fasta
 
 
 def read_bed(bed_path):
