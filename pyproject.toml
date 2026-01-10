@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "celloracle-lite"
+dynamic = ["version"]
+description = "Lightweight fork of CellOracle for GRN analysis with reduced dependencies"
+readme = "README.rst"
+license = {text = "Apache-2.0 (modified; non-commercial academic use only)"}
+authors = [
+    {name = "Kenji Kamimoto", email = "kamimoto@wustl.edu"},
+]
+maintainers = [
+    {name = "cantinilab"},
+]
+keywords = ["scRNA-seq", "GRN", "simulation", "gene perturbation", "celloracle-lite"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.10",
+]
+requires-python = ">=3.6"
+dependencies = [
+    "numpy==1.26.4",
+    "scipy",
+    "cython",
+    "numba>=0.50.1",
+    "scikit-learn",
+    "pandas",
+    "tqdm>=4.45",
+    "IPython",
+    "anndata>=0.7.5,<=0.10.8",
+    "scanpy>=1.6",
+    "joblib",
+    "genomepy>=0.8.4",
+    "gimmemotifs>=0.14.4,<=0.17.2",
+    "statsmodels==0.14.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/morris-lab/CellOracle"
+"Fork Repository" = "https://github.com/cantinilab/celloracle"
+
+[project.scripts]
+seuratToAnndata = "celloracle.data_conversion.process_seurat_object:main"
+
+[tool.setuptools]
+packages = [
+    "celloracle",
+    "celloracle.data",
+    "celloracle.motif_analysis",
+    "celloracle.utility",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "celloracle.version.__version__"}
+
+[tool.setuptools.package-data]
+celloracle = [
+    "motif_analysis/tss_ref_data/*.bed",
+]
