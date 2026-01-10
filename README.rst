@@ -1,29 +1,51 @@
-CellOracle
-==========
+CellOracle-lite
+===============
 
-|GitHub Workflow Status| |PyPI| |PyPI - Python Version| |PyPI - Wheel|
-|Downloads| |Docker Pulls|
+⚠️ **Important Notice**
+------------------------
+
+This is **celloracle-lite**, a lightweight fork of the original CellOracle project
+maintained by cantinilab for use with ReCoN and HuMMuS.
+
+**This fork is NOT affiliated with, endorsed by, or maintained by the original CellOracle authors.**
+
+Import as: ``import celloracle``
+
+Version: **0.21.0+lite**
+
+Original CellOracle
+-------------------
 
 CellOracle is a python library for in silico gene perturbation analyses
 using single-cell omics data and Gene Regulatory Network models.
 
-For more information, please read our paper: `Dissecting cell identity
-via network inference and in silico gene
-perturbation <https://www.nature.com/articles/s41586-022-05688-9>`__.
+**Original repository:** https://github.com/morris-lab/CellOracle
 
-Documentation, Codes, and Tutorials
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Original publication:** `Dissecting cell identity via network inference and in silico gene
+perturbation <https://www.nature.com/articles/s41586-022-05688-9>`__
 
-CellOracle documentation is available through the link below.
+**Original documentation:** `Web documentation <https://morris-lab.github.io/CellOracle.documentation/>`__
 
-`Web
-documentation <https://morris-lab.github.io/CellOracle.documentation/>`__
+What is CellOracle-lite?
+-------------------------
 
-Questions and errors
+CellOracle-lite is a reduced version designed to support GRN workflows in ReCoN and HuMMuS
+while avoiding heavy dependency conflicts. 
+
+This fork:
+
+- Keeps core GRN functionality needed by ReCoN
+- Removes optional or heavyweight components
+- Aims for easier installation in lightweight environments
+
+If you need the full CellOracle feature set, please use the **official CellOracle package**.
+
+Questions and Issues
 ~~~~~~~~~~~~~~~~~~~~
 
-If you have a question, error, bug, or problem, please use the `Github
-issue page <https://github.com/morris-lab/CellOracle/issues>`__.
+For celloracle-lite issues: https://github.com/cantinilab/celloracle/issues
+
+For original CellOracle: https://github.com/morris-lab/CellOracle/issues
 
 Supported Species and reference genomes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

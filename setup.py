@@ -14,7 +14,8 @@ with open('LICENSE') as f:
     license = f.read()
 
 root_dir = path.abspath(path.dirname(__file__))
-package_name = "celloracle"
+package_name = "celloracle"  # Keep this for directory structure
+pypi_name = "celloracle-lite"  # Use this for PyPI to avoid conflict
 
 with open(path.join(root_dir, package_name, '__init__.py')) as f:
     init_text = f.read()
@@ -30,11 +31,12 @@ with open(path.join(root_dir, package_name, 'version.py')) as f:
 
 # Start install process
 setup(
-    name=package_name,
-    version=version, #
-    description='in silico gene perturbation analysis and GRN analysis with single cell data',
+    name=pypi_name,  # Use celloracle-lite for PyPI
+    version=version,
+    description='[celloracle-lite] Lightweight fork of CellOracle for GRN analysis with reduced dependencies',
     long_description=readme,
-    keywords='scRNA-seq, GRN, simulation, gene perturbation',
+    long_description_content_type='text/x-rst',
+    keywords='scRNA-seq, GRN, simulation, gene perturbation, celloracle-lite',
     python_requires='>=3.6',
     classifiers=[# How mature is this project? Common values are
                 #   3 - Alpha
@@ -43,10 +45,12 @@ setup(
                 'Development Status :: 4 - Beta',
 
                 # Indicate who your project is intended for
+                'Intended Audience :: Science/Research',
                 'Intended Audience :: Developers',
-                'Topic :: Software Development :: Build Tools',
+                'Topic :: Scientific/Engineering :: Bio-Informatics',
 
-                # Pick your license as you wish (should match "license" above)
+                # License - NON-COMMERCIAL ONLY
+                'License :: Free for non-commercial use',
                 # 'License :: OSI Approved :: MIT License',
 
                 # Specify the Python versions you support here. In particular, ensure
