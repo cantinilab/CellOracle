@@ -45,9 +45,6 @@ jobs:
     needs: [build_package]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
-    environment:
-      name: pypi
-      url: https://pypi.org/p/celloracle-lite
     permissions:
       id-token: write  # For trusted publishing
     steps:
