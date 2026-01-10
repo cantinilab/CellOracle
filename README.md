@@ -15,7 +15,7 @@
 Gene Regulatory Network (GRN) workflows used in **ReCoN** and **HuMMuS**, while
 avoiding heavy dependencies required by the full CellOracle stack.
 
-**Version:** 0.21.0+lite  
+**Version:** 0.21.0 (lite fork)  
 **Import as:** `import celloracle`  
 **Maintained by:** cantinilab
 
