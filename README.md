@@ -1,26 +1,77 @@
-# CellOracle
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/morris-lab/CellOracle/build_check.yml?branch=master)](https://github.com/morris-lab/CellOracle/actions/workflows/build_check.yml)
-[![PyPI](https://img.shields.io/pypi/v/celloracle?color=blue)](https://pypi.org/project/celloracle/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/celloracle)](https://pypi.org/project/celloracle/)
-[![PyPI - Wheel](https://img.shields.io/pypi/wheel/celloracle)](https://pypi.org/project/celloracle/)
-[![Downloads](https://static.pepy.tech/personalized-badge/celloracle?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads)](https://pepy.tech/project/celloracle)
-[![Docker Pulls](https://img.shields.io/docker/pulls/kenjikamimoto126/celloracle_ubuntu?color=red)](https://hub.docker.com/r/kenjikamimoto126/celloracle_ubuntu)
+# CellOracle-lite  
+### Lightweight fork of CellOracle for ReCoN / HuMMuS
 
-CellOracle is a python library for in silico gene perturbation analyses using single-cell omics data and Gene Regulatory Network models.
+> ⚠️ **Important notice**  
+> This repository is a **lightweight fork** of the original **CellOracle** project  
+> (https://github.com/morris-lab/CellOracle).  
+>  
+> It is **not affiliated with, endorsed by, or maintained by** the original CellOracle authors.
 
-For more information, please read our paper: [Dissecting cell identity via network inference and in silico gene perturbation](https://www.nature.com/articles/s41586-022-05688-9).
+---
 
+## What is CellOracle-lite?
 
-### Documentation, Codes, and Tutorials
-CellOracle documentation is available through the link below.
+**CellOracle-lite** is a reduced version of CellOracle designed to support
+Gene Regulatory Network (GRN) workflows used in **ReCoN** and **HuMMuS**, while
+avoiding heavy dependencies required by the full CellOracle stack.
 
-[Web documentation](https://morris-lab.github.io/CellOracle.documentation/)
+This fork was created because some dependency combinations required by the
+full CellOracle package could not be resolved in the environments
+used by ReCoN and HuMMuS.
 
+This fork:
+- keeps the core GRN-related functionality needed by ReCoN
+- removes optional or heavyweight components not required for these workflows
+- aims to be faster and easier to install in lightweight environments
 
-### Questions and errors
-If you have a question, error, bug, or problem, please use the [Github issue page](https://github.com/morris-lab/CellOracle/issues).
+If you need the full CellOracle feature set, please use the **official CellOracle package** instead.
 
-### Supported Species and reference genomes
+---
+
+## Original project
+
+**CellOracle** is a Python library for *in silico* gene perturbation analyses
+using single-cell omics data and Gene Regulatory Network models.
+
+Original repository:  
+https://github.com/morris-lab/CellOracle
+
+Original publication:  
+**Dissecting cell identity via network inference and in silico gene perturbation**  
+https://www.nature.com/articles/s41586-022-05688-9
+
+Original documentation:  
+https://morris-lab.github.io/CellOracle.documentation/
+
+---
+
+## License
+
+This fork is distributed **under the same license terms as the original CellOracle project**.
+
+⚠️ **Non-commercial restriction applies**  
+CellOracle (and therefore this fork) may be used **for non-commercial academic
+research purposes only**.  
+Commercial use requires permission from the original CellOracle authors.
+
+See the `LICENSE` file for full details.
+
+---
+
+## Questions, issues, and support
+
+- **For this fork**: please open an issue in *this* repository
+- **For the original CellOracle**: use  
+  https://github.com/morris-lab/CellOracle/issues
+
+Please do **not** contact the original CellOracle maintainers about issues
+specific to this fork.
+
+---
+
+## Supported species and reference genomes
+
+*(Same as upstream; unchanged)*
 
 - Human: ['hg38', 'hg19']
 - Mouse: ['mm39', 'mm10', 'mm9']
@@ -36,6 +87,9 @@ If you have a question, error, bug, or problem, please use the [Github issue pag
 - Guinea Pig: ["Cavpor3.0"]
 - Pig: ["Sscrofa11.1"]
 
-### Changelog
+---
 
-Please go to [this page](https://morris-lab.github.io/CellOracle.documentation/changelog/index.html).
+## Changelog
+
+For upstream changes, see:  
+https://morris-lab.github.io/CellOracle.documentation/changelog/index.html
