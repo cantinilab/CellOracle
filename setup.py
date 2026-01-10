@@ -38,6 +38,8 @@ setup(
     long_description_content_type='text/x-rst',
     keywords='scRNA-seq, GRN, simulation, gene perturbation, celloracle-lite',
     python_requires='>=3.6',
+    license="Apache-2.0 (modified; non-commercial academic use only)",  # short human string
+    license_files=("LICENSE",),  # include the license file in sdist/wheel
     classifiers=[# How mature is this project? Common values are
                 #   3 - Alpha
                 #   4 - Beta
@@ -50,7 +52,6 @@ setup(
                 'Topic :: Scientific/Engineering :: Bio-Informatics',
 
                 # License - NON-COMMERCIAL ONLY
-                'License :: Free for non-commercial use',
                 # 'License :: OSI Approved :: MIT License',
 
                 # Specify the Python versions you support here. In particular, ensure
@@ -64,7 +65,6 @@ setup(
     author=author,
     author_email=author_email,
     url=url,
-    license=license,
     package_data={"celloracle": [
                                  "motif_analysis/tss_ref_data/*.bed",
                                  #"data/TFinfo_data/*.txt", "data/TFinfo_data/*.parquet",
