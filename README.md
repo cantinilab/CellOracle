@@ -15,6 +15,10 @@
 Gene Regulatory Network (GRN) workflows used in **ReCoN** and **HuMMuS**, while
 avoiding heavy dependencies required by the full CellOracle stack.
 
+**Version:** 0.21.0+lite  
+**Import as:** `import celloracle`  
+**Maintained by:** cantinilab
+
 This fork was created because some dependency combinations required by the
 full CellOracle package could not be resolved in the environments
 used by ReCoN and HuMMuS.
@@ -60,9 +64,8 @@ See the `LICENSE` file for full details.
 
 ## Questions, issues, and support
 
-- **For this fork**: please open an issue in *this* repository
-- **For the original CellOracle**: use  
-  https://github.com/morris-lab/CellOracle/issues
+- **For this fork**: https://github.com/cantinilab/celloracle/issues
+- **For the original CellOracle**: https://github.com/morris-lab/CellOracle/issues
 
 Please do **not** contact the original CellOracle maintainers about issues
 specific to this fork.
