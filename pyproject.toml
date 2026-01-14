@@ -12,7 +12,7 @@ authors = [
     {name = "Kenji Kamimoto", email = "kamimoto@wustl.edu"},
 ]
 maintainers = [
-    {name = "cantinilab"},
+    {name = "Remi Trimbour, email = remi.trimbour@pasteur.fr"},
 ]
 keywords = ["scRNA-seq", "GRN", "simulation", "gene perturbation", "celloracle-lite"]
 classifiers = [
