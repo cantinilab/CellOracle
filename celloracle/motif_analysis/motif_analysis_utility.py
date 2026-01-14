@@ -36,7 +36,40 @@ from ..utility.package_version_checker import _is_version_OK
 ####
 ###
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-    
+
+
+def _load_default_gimmemotifs():
+    """
+    Version-safe loader for default gimmemotifs motifs.
+
+    - gimmemotifs < 0.18 : use default_motifs()
+    - gimmemotifs >= 0.18: use read_motifs()
+    - otherwise: raise RuntimeError
+    """
+    import gimmemotifs
+    from packaging.version import Version
+
+    gm_version = Version(gimmemotifs.__version__)
+
+    if gm_version < Version("0.18.0"):
+        try:
+            from gimmemotifs.motif import default_motifs
+        except ImportError as e:
+            raise RuntimeError(
+                "gimmemotifs < 0.18 detected, but default_motifs() is missing."
+            ) from e
+
+        return default_motifs()
+
+    elif gm_version >= Version("0.18.0"):
+        from gimmemotifs.motif import read_motifs
+        return read_motifs()
+
+    else:
+        raise RuntimeError(
+            f"Unsupported gimmemotifs version: {gimmemotifs.__version__}"
+        )
+
 
 def get_available_ref_genome_info(species, provider="UCSC"):
 

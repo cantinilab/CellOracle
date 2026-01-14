@@ -39,7 +39,7 @@ dependencies = [
     "scanpy>=1.6",
     "joblib",
     "genomepy>=0.8.4",
-    "gimmemotifs>=0.14.4,<=0.17.2",
+    "gimmemotifs>=0.14.4,<=0.18.2",
     "statsmodels==0.14.5",
 ]
 

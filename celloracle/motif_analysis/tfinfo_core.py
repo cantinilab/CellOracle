@@ -33,16 +33,16 @@ from tqdm.auto import tqdm
 from genomepy import Genome
 
 from gimmemotifs.motif import Motif
-from gimmemotifs.motif import default_motifs
 from gimmemotifs.scanner import Scanner
 
 from ..utility import save_as_pickled_object, load_pickled_object, intersect,\
                       makelog, inverse_dictionary
 #
-from .motif_analysis_utility import scan_dna_for_motifs, is_genome_installed
+from .motif_analysis_utility import scan_dna_for_motifs, is_genome_installed, _load_default_gimmemotifs
 from .process_bed_file import read_bed, peak2fasta, remove_zero_seq
 from .motif_data import load_motifs
 from .reference_genomes import SUPPORTED_REF_GENOME
+
 
 
 
@@ -202,7 +202,7 @@ class TFinfo():
         save_as_pickled_object(tmp_self, os.path.join(folder_path, "tfi.pickle"))
 
         print(f"file saved in: {folder_path}")
-
+      
     def set_motifs(self, motifs=None, TF_formatting="auto", verbose=True):
 
         if motifs is None:
@@ -210,7 +210,7 @@ class TFinfo():
                 print("No motif data entered. Loading default motifs for your species ...")
 
             if self.species in ["Mouse", "Human", "Rat"]: # If species is vertebrate, we use gimmemotif default motifs as a default.
-                motifs = default_motifs()
+                motifs = _load_default_gimmemotifs()
                 self.motif_db_name = "gimme.vertebrate.v5.0"
                 self.TF_formatting = True
                 if verbose:
